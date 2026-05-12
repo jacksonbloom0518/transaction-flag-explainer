@@ -268,7 +268,9 @@
   document.getElementById('desc').addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      document.getElementById('form').requestSubmit();
+      if (!document.getElementById('btn').disabled) {
+        document.getElementById('form').requestSubmit();
+      }
     }
   });
 
