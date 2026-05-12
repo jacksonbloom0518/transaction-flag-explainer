@@ -218,6 +218,34 @@
     letter-spacing: .1em; color: var(--dim); text-align: center;
   }
 
+  /* History */
+  #history-card { display: none; }
+
+  .history-entry {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 10px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .history-entry:last-child { border-bottom: none; }
+  .history-entry:hover { background: var(--dim); }
+  .history-entry.active { background: var(--dim); }
+
+  .history-desc {
+    font-size: 12px; color: var(--text);
+    white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 340px;
+  }
+  .history-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .history-badge {
+    font-size: 10px; letter-spacing: .12em;
+    padding: 2px 8px; border-radius: 3px;
+    border: 1px solid currentColor; white-space: nowrap; flex-shrink: 0;
+  }
+
   @media (max-width: 420px) {
     .score-num { font-size: 48px; }
   }
@@ -290,11 +318,61 @@
     </div>
   </div>
 
+  <!-- History -->
+  <div class="card" id="history-card">
+    <div class="card-head"><span class="dot"></span>RECENT ANALYSES</div>
+    <div id="history-list"></div>
+  </div>
+
   <footer>TEST-512 · TRANSACTION EXPLAINER</footer>
 </div>
 
 <script>
   const API = 'http://127.0.0.1:8000';
+
+  const history = [];
+  let activeIdx = 0;
+
+  function relativeTime(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'just now';
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} min ago`;
+    return `${Math.floor(m / 60)} hr ago`;
+  }
+
+  function renderHistoryList() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    history.forEach((entry, i) => {
+      const lvl = entry.risk_level === 'high' ? 'high' : entry.risk_level === 'medium' ? 'med' : 'low';
+      const row = document.createElement('div');
+      row.className = `history-entry${i === activeIdx ? ' active' : ''}`;
+      row.innerHTML = `
+        <div>
+          <div class="history-desc"></div>
+          <div class="history-time">${relativeTime(entry.timestamp)}</div>
+        </div>
+        <div class="history-badge c-${lvl}">${entry.score} · ${entry.risk_level.toUpperCase()}</div>
+      `;
+      row.querySelector('.history-desc').textContent = entry.description;
+      row.addEventListener('click', () => {
+        activeIdx = i;
+        render(entry, false);
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function addToHistory(entry) {
+    history.unshift(entry);
+    if (history.length > 10) history.pop();
+    activeIdx = 0;
+    renderHistoryList();
+    if (history.length >= 2) {
+      document.getElementById('history-card').style.display = 'block';
+    }
+  }
 
   let _countUpId = 0;
   function countUp(target, duration) {
@@ -385,7 +463,7 @@
         const e = await res.json();
         throw new Error(e.detail || `HTTP ${res.status}`);
       }
-      render(await res.json());
+      render({ ...await res.json(), description: desc });
     } catch (ex) {
       err.textContent = `Error: ${ex.message}`;
       err.style.display = 'block';
@@ -395,7 +473,7 @@
     }
   });
 
-  function render({ score, risk_level, flags }) {
+  function render({ score, risk_level, flags, description }, addToHist = true) {
     const lvl = risk_level === 'high' ? 'high' : risk_level === 'medium' ? 'med' : 'low';
 
     // Score number
@@ -437,6 +515,15 @@
 
     document.getElementById('result').style.display = 'block';
     document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (addToHist) {
+      addToHistory({
+        description: description || document.getElementById('desc').value.trim(),
+        score,
+        risk_level,
+        flags,
+        timestamp: Date.now(),
+      });
+    }
   }
 </script>
 </body>
