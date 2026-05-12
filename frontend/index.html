@@ -279,10 +279,13 @@
 <script>
   const API = 'http://127.0.0.1:8000';
 
+  let _countUpId = 0;
   function countUp(target, duration) {
+    const id = ++_countUpId;
     const el = document.getElementById('score-val');
     const start = performance.now();
     (function tick(now) {
+      if (id !== _countUpId) return;
       const t = Math.min((now - start) / duration, 1);
       el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
       if (t < 1) requestAnimationFrame(tick);
