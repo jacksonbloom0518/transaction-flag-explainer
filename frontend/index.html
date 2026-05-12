@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraud Risk Scorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #080b0f;
+    --surface: #0d1117;
+    --border:  #1e2a38;
+    --dim:     #162030;
+    --text:    #cdd9e5;
+    --muted:   #4d6a85;
+    --accent:  #2f81f7;
+    --low:     #3fb950;
+    --med:     #d29922;
+    --high:    #f85149;
+    --mono:    'IBM Plex Mono', monospace;
+    --sans:    'IBM Plex Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1rem 5rem;
+  }
+
+  /* subtle grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(47,129,247,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47,129,247,.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+  }
+
+  .wrap {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 600px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  /* ── Header ── */
+  header { padding-bottom: 1.2rem; border-bottom: 1px solid var(--border); }
+
+  .tag {
+    font-size: 10px; letter-spacing: .2em; color: var(--accent);
+    text-transform: uppercase; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tag::before {
+    content: ''; width: 6px; height: 6px;
+    background: var(--accent); border-radius: 50%;
+    animation: blink 2.4s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  h1 {
+    font-size: clamp(17px, 3.5vw, 22px); font-weight: 600;
+    letter-spacing: .07em; color: #e6edf3;
+  }
+  .sub {
+    font-family: var(--sans); font-size: 13px;
+    color: var(--muted); margin-top: 3px; font-weight: 300;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  }
+  .card-head {
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+    font-size: 10px; letter-spacing: .15em; color: var(--muted);
+    text-transform: uppercase; display: flex; align-items: center; gap: 6px;
+  }
+  .card-head .dot { width: 5px; height: 5px; background: var(--dim); border-radius: 50%; }
+  .card-body { padding: 18px; }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%; min-height: 72px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font-family: var(--mono); font-size: 14px; line-height: 1.6;
+    padding: 11px 13px; resize: vertical; outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* Example chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-size: 11px; padding: 3px 10px;
+    background: var(--dim); border: 1px solid var(--border); border-radius: 20px;
+    color: var(--muted); cursor: pointer;
+    transition: border-color .15s, color .15s; white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Submit */
+  button[type="submit"] {
+    margin-top: 14px; width: 100%; padding: 11px;
+    background: var(--accent); color: #fff; border: none; border-radius: 4px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+    text-transform: uppercase; cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  button[type="submit"]:hover  { opacity: .85; }
+  button[type="submit"]:active { transform: scale(.99); }
+  button[type="submit"]:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* Error */
+  .err {
+    font-size: 12px; color: var(--high); margin-top: 8px; display: none;
+    padding: 8px 12px;
+    background: rgba(248,81,73,.07); border: 1px solid rgba(248,81,73,.2); border-radius: 4px;
+  }
+
+  /* ── Result ── */
+  #result { display: none; animation: up .3s ease; }
+  @keyframes up { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Score + badge row */
+  .score-row {
+    display: flex; align-items: flex-end;
+    justify-content: space-between; gap: 10px; margin-bottom: 14px;
+  }
+  .score-num {
+    font-size: 64px; font-weight: 600; line-height: 1;
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  }
+  .score-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .badge {
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    padding: 6px 18px; border-radius: 3px; font-weight: 500;
+    border: 1px solid currentColor;
+  }
+
+  /* Gauge */
+  .gauge-track {
+    height: 3px; background: var(--border); border-radius: 2px;
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .gauge-fill {
+    height: 100%; border-radius: 2px; width: 0%;
+    transition: width .9s cubic-bezier(.16,1,.3,1);
+  }
+
+  /* Flags */
+  .flags-label {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .flags-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .flag-tag {
+    font-size: 11px; padding: 3px 10px;
+    background: var(--dim); border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text);
+  }
+  .flag-tag.high { border-color: rgba(248,81,73,.35); color: var(--high); }
+  .flag-tag.med  { border-color: rgba(210,153,34,.35); color: var(--med); }
+  .no-flags { font-size: 13px; color: var(--muted); }
+
+  /* color helpers */
+  .c-low  { color: var(--low);  }
+  .c-med  { color: var(--med);  }
+  .c-high { color: var(--high); }
+  .g-low  { background: var(--low);  }
+  .g-med  { background: var(--med);  }
+  .g-high { background: var(--high); }
+
+  footer {
+    margin-top: 2.5rem; font-size: 10px;
+    letter-spacing: .1em; color: var(--dim); text-align: center;
+  }
+
+  @media (max-width: 420px) {
+    .score-num { font-size: 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tag">IBM SAFER PAYMENTS · RISK ENGINE</div>
+    <h1>FRAUD RISK SCORER</h1>
+    <p class="sub">Describe a transaction in plain English — get an instant risk score</p>
+  </header>
+
+  <!-- Input -->
+  <div class="card">
+    <div class="card-head"><span class="dot"></span>TRANSACTION DESCRIPTION</div>
+    <div class="card-body">
+      <form id="form">
+        <textarea
+          id="desc"
+          placeholder="e.g. wire transfer $10000 to international casino at midnight"
+          rows="3"
+        ></textarea>
+
+        <div class="chips" id="examples">
+          <span class="chip">wire transfer $10,000 to casino</span>
+          <span class="chip">$45 grocery store, afternoon</span>
+          <span class="chip">bitcoin purchase overseas, urgent</span>
+          <span class="chip">$320 electronics online at 11pm</span>
+          <span class="chip">gift card purchase, winner claim</span>
+        </div>
+
+        <button type="submit" id="btn">▶ &nbsp;ANALYZE TRANSACTION</button>
+        <div class="err" id="err"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="card" id="result">
+    <div class="card-head"><span class="dot"></span>RISK ASSESSMENT</div>
+    <div class="card-body">
+
+      <div class="score-row">
+        <div>
+          <div class="score-label">Risk Score</div>
+          <div class="score-num" id="score-num">—</div>
+        </div>
+        <div style="text-align:right">
+          <div class="score-label">Risk Level</div>
+          <div class="badge" id="badge">—</div>
+        </div>
+      </div>
+
+      <div class="gauge-track">
+        <div class="gauge-fill" id="gauge"></div>
+      </div>
+
+      <div class="flags-label">DETECTED FLAGS</div>
+      <div class="flags-wrap" id="flags-wrap"></div>
+
+    </div>
+  </div>
+
+  <footer>TEST-512 · TRANSACTION EXPLAINER</footer>
+</div>
+
+<script>
+  const API = 'http://127.0.0.1:8000';
+
+  // Example chips fill textarea
+  document.getElementById('examples').addEventListener('click', e => {
+    if (e.target.classList.contains('chip')) {
+      document.getElementById('desc').value = e.target.textContent.trim();
+      document.getElementById('desc').focus();
+    }
+  });
+
+  // Ctrl+Enter or Cmd+Enter to submit form
+  document.getElementById('desc').addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('form').requestSubmit();
+    }
+  });
+
+  document.getElementById('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const desc = document.getElementById('desc').value.trim();
+    if (!desc) return;
+
+    const btn  = document.getElementById('btn');
+    const err  = document.getElementById('err');
+    err.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '⏳ &nbsp;ANALYZING...';
+
+    try {
+      const res = await fetch(`${API}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: desc }),
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        throw new Error(e.detail || `HTTP ${res.status}`);
+      }
+      render(await res.json());
+    } catch (ex) {
+      err.textContent = `Error: ${ex.message}`;
+      err.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '▶ &nbsp;ANALYZE TRANSACTION';
+    }
+  });
+
+  function render({ score, risk_level, flags }) {
+    const lvl = risk_level === 'high' ? 'high' : risk_level === 'medium' ? 'med' : 'low';
+
+    // Score number
+    const numEl = document.getElementById('score-num');
+    numEl.textContent = score;
+    numEl.className = `score-num c-${lvl}`;
+
+    // Badge
+    const badgeEl = document.getElementById('badge');
+    badgeEl.textContent = risk_level.toUpperCase();
+    badgeEl.className = `badge c-${lvl}`;
+
+    // Gauge
+    const gaugeEl = document.getElementById('gauge');
+    gaugeEl.className = `gauge-fill g-${lvl}`;
+    gaugeEl.style.width = '0%';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      gaugeEl.style.width = `${score}%`;
+    }));
+
+    // Flags
+    const wrap = document.getElementById('flags-wrap');
+    wrap.innerHTML = '';
+    if (!flags.length) {
+      wrap.innerHTML = '<span class="no-flags">No risk indicators detected</span>';
+    } else {
+      flags.forEach(f => {
+        const span = document.createElement('span');
+        const isHigh = f.startsWith('high_risk');
+        const isMed  = f.startsWith('medium_risk');
+        span.className = `flag-tag${isHigh ? ' high' : isMed ? ' med' : ''}`;
+        // clean up the label: "high_risk_term:casino" -> "casino"
+        span.textContent = f.includes(':') ? f.split(':')[1].replace(/_/g, ' ') : f;
+        wrap.appendChild(span);
+      });
+    }
+
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
