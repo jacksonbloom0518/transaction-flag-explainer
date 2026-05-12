@@ -330,7 +330,7 @@
 <script>
   const API = 'http://127.0.0.1:8000';
 
-  const history = [];
+  const analysisLog = [];
   let activeIdx = 0;
 
   function relativeTime(ts) {
@@ -344,7 +344,7 @@
   function renderHistoryList() {
     const list = document.getElementById('history-list');
     list.innerHTML = '';
-    history.forEach((entry, i) => {
+    analysisLog.forEach((entry, i) => {
       const lvl = entry.risk_level === 'high' ? 'high' : entry.risk_level === 'medium' ? 'med' : 'low';
       const row = document.createElement('div');
       row.className = `history-entry${i === activeIdx ? ' active' : ''}`;
@@ -357,6 +357,7 @@
       `;
       row.querySelector('.history-desc').textContent = entry.description;
       row.addEventListener('click', () => {
+        if (i === activeIdx) return;
         activeIdx = i;
         render(entry, false);
       });
@@ -365,11 +366,11 @@
   }
 
   function addToHistory(entry) {
-    history.unshift(entry);
-    if (history.length > 10) history.pop();
+    analysisLog.unshift(entry);
+    if (analysisLog.length > 10) analysisLog.pop();
     activeIdx = 0;
     renderHistoryList();
-    if (history.length >= 2) {
+    if (analysisLog.length >= 2) {
       document.getElementById('history-card').style.display = 'block';
     }
   }
@@ -523,6 +524,8 @@
         flags,
         timestamp: Date.now(),
       });
+    } else {
+      renderHistoryList();
     }
   }
 </script>
