@@ -193,6 +193,18 @@
   .flag-tag.med  { border-color: rgba(210,153,34,.35); color: var(--med); }
   .no-flags { font-size: 13px; color: var(--muted); }
 
+  /* Analysis block */
+  .analysis-block {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    margin-top: 14px;
+  }
+  #analysis-text {
+    font-family: var(--sans);
+    font-size: 13px; color: var(--text);
+    line-height: 1.6; font-weight: 300; margin: 0;
+  }
+
   /* color helpers */
   .c-low  { color: var(--low);  }
   .c-med  { color: var(--med);  }
@@ -270,6 +282,11 @@
       <div class="flags-label">DETECTED FLAGS</div>
       <div class="flags-wrap" id="flags-wrap"></div>
 
+      <div class="analysis-block">
+        <div class="flags-label">ANALYSIS</div>
+        <p id="analysis-text"></p>
+      </div>
+
     </div>
   </div>
 
@@ -290,6 +307,43 @@
       el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
       if (t < 1) requestAnimationFrame(tick);
     })(performance.now());
+  }
+
+  function generateAnalysis(risk_level, flags) {
+    if (risk_level === 'low') {
+      return 'Low risk — no significant indicators detected. Transaction appears routine.';
+    }
+
+    const highNames = flags
+      .filter(f => f.startsWith('high_risk_term:'))
+      .map(f => f.split(':')[1].replace(/_/g, ' '));
+    const medNames = flags
+      .filter(f => f.startsWith('medium_risk_term:'))
+      .map(f => f.split(':')[1].replace(/_/g, ' '));
+    const allNames = flags.map(f => f.includes(':') ? f.split(':')[1].replace(/_/g, ' ') : f);
+
+    if (risk_level === 'medium') {
+      const named = medNames.slice(0, 3).join(', ') || 'elevated indicators';
+      return `Moderate risk — ${medNames.length || 'some'} elevated indicator(s) detected (${named}). Review before approving.`;
+    }
+
+    // high
+    const count = highNames.length;
+    const named = highNames.slice(0, 3).join(', ');
+    const nameStr = named ? ` (${named})` : '';
+
+    let context = 'This transaction matches common fraud patterns.';
+    if (allNames.some(n => ['casino', 'gambling', 'bet', 'lottery'].includes(n))) {
+      context = 'This pattern is associated with money laundering and gambling-related fraud.';
+    } else if (allNames.some(n => ['gift card', 'winner', 'claim', 'prize', 'inheritance'].includes(n))) {
+      context = 'This pattern matches social engineering and advance-fee fraud schemes.';
+    } else if (allNames.some(n => ['wire transfer', 'western union', 'moneygram'].includes(n))) {
+      context = 'Wire-based transfers to high-risk destinations are a common fraud vector.';
+    } else if (allNames.some(n => ['bitcoin', 'crypto'].includes(n))) {
+      context = 'Cryptocurrency transfers to unknown destinations carry elevated laundering risk.';
+    }
+
+    return `High risk — ${count} critical indicator${count !== 1 ? 's' : ''} detected${nameStr}. ${context}`;
   }
 
   // Example chips fill textarea
@@ -377,6 +431,9 @@
         wrap.appendChild(span);
       });
     }
+
+    // Analysis
+    document.getElementById('analysis-text').textContent = generateAnalysis(risk_level, flags);
 
     document.getElementById('result').style.display = 'block';
     document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
