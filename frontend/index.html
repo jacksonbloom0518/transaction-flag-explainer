@@ -353,9 +353,10 @@
           <div class="history-desc"></div>
           <div class="history-time">${relativeTime(entry.timestamp)}</div>
         </div>
-        <div class="history-badge c-${lvl}">${entry.score} · ${entry.risk_level.toUpperCase()}</div>
+        <div class="history-badge c-${lvl}"></div>
       `;
       row.querySelector('.history-desc').textContent = entry.description;
+      row.querySelector('.history-badge').textContent = `${entry.score} · ${entry.risk_level.toUpperCase()}`;
       row.addEventListener('click', () => {
         if (i === activeIdx) return;
         activeIdx = i;
@@ -402,8 +403,10 @@
     const allNames = flags.map(f => f.includes(':') ? f.split(':')[1].replace(/_/g, ' ') : f);
 
     if (risk_level === 'medium') {
-      const named = medNames.slice(0, 3).join(', ') || 'elevated indicators';
-      return `Moderate risk — ${medNames.length || 'some'} elevated indicator(s) detected (${named}). Review before approving.`;
+      const displayNames = medNames.length ? medNames : allNames;
+      const named = displayNames.slice(0, 3).join(', ') || 'elevated indicators';
+      const count = displayNames.length || 'some';
+      return `Moderate risk — ${count} elevated indicator(s) detected (${named}). Review before approving.`;
     }
 
     // high
@@ -476,11 +479,12 @@
 
   function render({ score, risk_level, flags, description }, addToHist = true) {
     const lvl = risk_level === 'high' ? 'high' : risk_level === 'medium' ? 'med' : 'low';
+    const clampedScore = Math.max(0, Math.min(100, score));
 
     // Score number
     document.getElementById('score-num').className = `score-num c-${lvl}`;
     document.getElementById('score-denom').textContent = '/100';
-    countUp(score, 600);
+    countUp(clampedScore, 600);
 
     // Badge
     const badgeEl = document.getElementById('badge');
@@ -491,7 +495,7 @@
     const tickEl = document.getElementById('gauge-tick');
     tickEl.style.left = '0%';
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      tickEl.style.left = `${score}%`;
+      tickEl.style.left = `${clampedScore}%`;
     }));
 
     // Flags
